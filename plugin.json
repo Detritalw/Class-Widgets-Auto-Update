@@ -1,0 +1,13 @@
+{
+    "name": "Class Widgets Auto Update",
+    "description": "Class Widgets 自动更新",
+    "version": "1.0.0",
+    "plugin_ver": 1,
+    "author": "Detrital",
+    "settings": true,
+
+    "url": "https://github.com/Detritalw/CW-AutoUpdate",
+    "branch": "main",
+
+    "update_date": "2024/12/29"
+}

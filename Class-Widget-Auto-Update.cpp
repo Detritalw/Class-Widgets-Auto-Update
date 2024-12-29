@@ -5,14 +5,17 @@
 using namespace std;
 
 
-// ȫ�ֱ���
+// 全局变量
 HINSTANCE hInst;
 HWND hEdit;
 
-// �����ص�����
+// 声明回调函数
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
-// WinMain��ں���
+// 声明检查更新函数
+void CheckForUpdates();
+
+// WinMain入口函数
 int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,LPSTR lpCmdLine,int nCmdShow){
     WNDCLASSEXW wcex;
     HWND hWnd;
@@ -51,7 +54,7 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,LPSTR lpCmdLine,i
     return (int)msg.wParam;
 }
 
-// �ص���������
+// 回调函数定义
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
         case WM_CREATE:
@@ -61,6 +64,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             CreateWindowW(L"BUTTON", L"\u9009\u62e9\u6587\u4ef6\u5939",
                          WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                          320, 10, 100, 25, hWnd, (HMENU)1, hInst, NULL);
+            CreateWindowW(L"STATIC", L"Class Widgets \u5f53\u524d\u7248\u672c",
+                          WS_CHILD | WS_VISIBLE,
+                          10, 50, 300, 25, hWnd, NULL, hInst, NULL);
+            CreateWindowW(L"BUTTON", L"检查更新",
+                          WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                          320, 50, 100, 25, hWnd, (HMENU)2, hInst, NULL);
             break;
         case WM_COMMAND:
             if (LOWORD(wParam) == 1) {
@@ -75,7 +84,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			        }
 			        CoTaskMemFree(pidl);
 			    }
+			    
 			}
+			if (LOWORD(wParam) == 2) {
+                CheckForUpdates();
+            }
 			break;
 
         case WM_DESTROY:
@@ -87,3 +100,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     return 0;
 }
 
+// 检查更新函数定义
+void CheckForUpdates() {
+    // 这里可以添加检查更新的逻辑，例如向GitHub API发送请求
+    MessageBoxW(NULL, L"检查更新功能尚未实现", L"检查更新", MB_OK);
+}
