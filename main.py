@@ -1,17 +1,21 @@
 """
-    Class Widgets Auto Update
-    Class Widgets 自动更新
+    Class Widgets Csv Import
+    让我们用.csv表格编辑 Class Widgets 课表！将.csv文件转换为 Class Widgets Json 课表
     Detrital
-    Github Repositories https://github.com/Detritalw/CW-AutoUpdate
+    Github Repositories https://github.com/Detritalw/Class-Widget-CSV-import
 """
 from PyQt5 import uic
 from loguru import logger
 from datetime import datetime
 from .ClassWidgets.base import PluginBase, SettingsBase, PluginConfig  # 导入CW的基类
 
-from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QFileDialog, QLineEdit
+from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QFileDialog, QLineEdit, QMessageBox, QLabel
 from qfluentwidgets import ImageLabel
 import subprocess
+import os
+from PyQt5.QtCore import QTimer
+import requests
+import configparser
 
 class Plugin(PluginBase):  # 插件类
     def __init__(self, cw_contexts, method):  # 初始化
@@ -20,56 +24,207 @@ class Plugin(PluginBase):  # 插件类
         self.cfg = PluginConfig(self.PATH, 'config.json')  # 实例化配置类
 
     def execute(self):  # 自启动执行部分
-
         logger.success('Plugin1 executed!')
         logger.info(f'Config path: {self.PATH}')
+        self.check_for_updates()
 
     def update(self, cw_contexts):  # 自动更新部分
         super().update(cw_contexts)  # 调用父类更新方法
         self.cfg.update_config()  # 更新配置
 
         if self.method.is_get_notification():
-            logger.warning('warning', f'Plugin1 got notification! Title: {self.cw_contexts["Notification"]["title"]}')
+            logger.warning(f'Plugin1 got notification! Title: {self.cw_contexts["Notification"]["title"]}')
 
             if self.cw_contexts['Notification']['state'] == 0:  # 如果下课
                 self.method.subprocess_exec(self.cfg['name'], self.cfg['action'])  # 调用CW方法构建自动化
+
+    def check_for_updates(self):
+        try:
+            response = requests.get('https://api.github.com/repos/Class-Widgets/Class-Widgets/releases/latest')
+            latest_version = response.json()['tag_name']
+            logger.info(f'Latest version: {latest_version}')
+
+            parent_dir = os.path.abspath(os.path.join(self.PATH, "../../.."))
+            config_path = os.path.join(parent_dir, 'config.ini')
+            config = configparser.ConfigParser()
+            config.read(config_path)
+            current_version = config.get('Other', 'version')
+            logger.info(f'Current version: {current_version}')
+
+            if latest_version != current_version:
+                logger.info('New version available, running update.exe')
+                subprocess.Popen([f'{self.PATH}/update.exe'])
+            else:
+                logger.info('No new version available')
+        except Exception as e:
+            logger.error(f'Error checking for updates: {e}')
 
 
 # 设置页
 class Settings(SettingsBase):
     def __init__(self, plugin_path, parent=None):
         super().__init__(plugin_path, parent)
+        self.PATH = plugin_path  # 确保 plugin_path 被正确设置
         uic.loadUi(f'{self.PATH}/settings.ui', self)  # 加载设置界面
 
-        # 添加打开转换器按钮
-        self.openButton = self.findChild(QPushButton, 'openButton')
-        self.openButton.clicked.connect(self.open_converter)
+        # 设置文件夹路径输入框的默认值
+        parent_dir = os.path.abspath(os.path.join(self.PATH, "../../.."))
+        default_schedule_path = os.path.join(parent_dir)
+        self.folderPathEdit = self.findChild(QLineEdit, 'nameEdit_2')
+        if self.folderPathEdit:
+            self.folderPathEdit.setText(default_schedule_path)
+        else:
+            logger.error('folderPathEdit not found in settings.ui')
 
-        # 添加新的控件
-        self.filePathEdit = self.findChild(QLineEdit, 'filePathEdit')
-        self.selectFileButton = self.findChild(QPushButton, 'selectFileButton')
-        self.selectFileButton.clicked.connect(self.select_file)
+        # 获取当前版本号并设置到标签上
+        config_path = os.path.join(parent_dir, 'config.ini')
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        current_version = config.get('Other', 'version', fallback='未知版本')
+        self.versionLabel = self.findChild(QLabel, 'label_4')
+        if self.versionLabel:
+            self.versionLabel.setText(current_version)
+        else:
+            logger.error('versionLabel not found in settings.ui')
 
-        self.convertButton = self.findChild(QPushButton, 'convertButton')
-        self.convertButton.clicked.connect(self.convert_csv_to_json)
+        # 添加选择文件夹按钮
+        self.selectFolderButton = self.findChild(QPushButton, 'pushButton')
+        if self.selectFolderButton:
+            self.selectFolderButton.clicked.connect(self.select_folder)
+        else:
+            logger.error('selectFolderButton not found in settings.ui')
 
-        self.helpButton = self.findChild(QPushButton, 'helpButton')
-        self.helpButton.clicked.connect(self.open_help)
+        # 添加选择文件按钮
+        self.selectFileButton = self.findChild(QPushButton, 'pushButton_2')
+        if self.selectFileButton:
+            self.selectFileButton.clicked.connect(self.select_file)
+        else:
+            logger.error('selectFileButton not found in settings.ui')
+
+        # 添加转换按钮
+        self.convertCsvToJsonButton = self.findChild(QPushButton, 'pushButton_4')
+        if self.convertCsvToJsonButton:
+            self.convertCsvToJsonButton.clicked.connect(self.convert_csv_to_json)
+        else:
+            logger.error('convertCsvToJsonButton not found in settings.ui')
+
+        self.convertJsonToCsvButton = self.findChild(QPushButton, 'pushButton_5')
+        if self.convertJsonToCsvButton:
+            self.convertJsonToCsvButton.clicked.connect(self.convert_json_to_csv)
+        else:
+            logger.error('convertJsonToCsvButton not found in settings.ui')
+
+        # 添加检查更新按钮
+        self.checkUpdateButton = self.findChild(QPushButton, 'pushButton_4')
+        if self.checkUpdateButton:
+            self.checkUpdateButton.clicked.connect(self.check_for_updates)
+        else:
+            logger.error('checkUpdateButton not found in settings.ui')
+
+        # 添加打开帮助按钮
+        self.helpButton = self.findChild(QPushButton, 'pushButton_3')
+        if self.helpButton:
+            self.helpButton.clicked.connect(self.open_help)
+        else:
+            logger.error('helpButton not found in settings.ui')
+
+        # 添加打开GitHub按钮
+        self.githubButton = self.findChild(QPushButton, 'pushButton_6')
+        if self.githubButton:
+            self.githubButton.clicked.connect(self.open_github)
+        else:
+            logger.error('githubButton not found in settings.ui')
+
+        # 文件路径输入框
+        self.filePathEdit = self.findChild(QLineEdit, 'nameEdit_2')
+        if not self.filePathEdit:
+            logger.error('filePathEdit not found in settings.ui')
+
+    def select_folder(self):
+        folder_path = QFileDialog.getExistingDirectory(self, "选择文件夹", "")
+        if folder_path:
+            self.folderPathEdit.setText(folder_path)
+            logger.info(f'选择的文件夹: {folder_path}')
 
     def open_converter(self):
         subprocess.Popen([f'{self.PATH}/cw-CSV-import.exe'])
         logger.info('打开转换器')
 
     def select_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "选择文件", "", "All Files (*)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择文件", "", "All Files (*);;CSV Files (*.csv);;JSON Files (*.json)")
         if file_path:
             self.filePathEdit.setText(file_path)
             logger.info(f'选择的文件: {file_path}')
 
     def convert_csv_to_json(self):
+        file_path = self.filePathEdit.text()
+        folder_path = self.folderPathEdit.text()
+        if file_path:
+            with open(f'{self.PATH}/link.ini', 'w') as f:
+                f.write(f'{file_path}\n{folder_path}')
+            logger.info('从csv文件转换到json课表文件')
+            QTimer.singleShot(2000, lambda: self.run_csv2json())
+        else:
+            QMessageBox.warning(self, "警告", "未填写源文件位置，无法进行转换")
+
+    def convert_json_to_csv(self):
+        file_path = self.filePathEdit.text()
+        folder_path = self.folderPathEdit.text()
+        if file_path:
+            with open(f'{self.PATH}/link.ini', 'w') as f:
+                f.write(f'{file_path}\n{folder_path}')
+            logger.info('从json课表文件转换到csv文件')
+            QTimer.singleShot(2000, lambda: self.run_json2csv())
+        else:
+            QMessageBox.warning(self, "错误", "未填写源文件位置，无法进行转换")
+
+    def run_csv2json(self):
         subprocess.Popen([f'{self.PATH}/csv2json.exe'])
-        logger.info('从csv文件转换到json课表文件')
+
+    def run_json2csv(self):
+        subprocess.Popen([f'{self.PATH}/Class-Widget-CSV-import.exe'])
 
     def open_help(self):
-        subprocess.Popen([f'{self.PATH}/help.exe'])
-        logger.info('需要帮助')
+        import webbrowser
+        webbrowser.open('https://bloretcrew.feishu.cn/wiki/BGXsw2TTUiqvREk1QLkc7nuCnvT?from=from_copylink')
+        logger.info('打开帮助页面')
+
+    def open_github(self):
+        import webbrowser
+        webbrowser.open('https://github.com/Detritalw/Class-Widget-CSV-import')
+        logger.info('打开GitHub页面')
+
+    def check_for_updates(self):
+        try:
+            response = requests.get('https://api.github.com/repos/Class-Widgets/Class-Widgets/releases/latest')
+            latest_version = response.json()['tag_name']
+            logger.info(f'Latest version: {latest_version}')
+
+            parent_dir = os.path.abspath(os.path.join(self.PATH, "../../.."))
+            config_path = os.path.join(parent_dir, 'config.ini')
+            config = configparser.ConfigParser()
+            config.read(config_path)
+            current_version = config.get('Other', 'version', fallback='未知版本')
+            logger.info(f'Current version: {current_version}')
+
+            if latest_version != current_version:
+                logger.info('New version available, running update.exe')
+                subprocess.Popen([f'{self.PATH}/update.exe'])
+            else:
+                logger.info('No new version available')
+        except Exception as e:
+            logger.error(f'Error checking for updates: {e}')
+
+# 菜单类
+class Menu:
+    def __init__(self):
+        # 初始化 Settings 类，并传递正确的 plugin_path 参数
+        self.settings = Settings(plugin_path='/d:/Work/1.1.7-b4/plugins/Class-Widget-CSV-import', parent=None)
+
+    def show_settings(self):
+        self.settings.show()
+
+# 初始化并显示菜单
+if __name__ == "__main__":
+    menu = Menu()
+    menu.show_settings()
